@@ -1,8 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
+using HutongGames.PlayMaker;
 using Modding;
 using MonoMod.Cil;
 using UnityEngine;
+using Vasi;
 
 namespace MenderbugsRevenge
 {
@@ -27,7 +28,7 @@ namespace MenderbugsRevenge
             IL.TownGrass.OnTriggerEnter2D += TriggerGrass;
             IL.GrassSpriteBehaviour.OnTriggerEnter2D += TriggerGrass;
 
-            ModHooks.SetPlayerBoolHook += TriggerMenderSign;
+            On.PlayMakerFSM.OnEnable += TriggerFsmBreakables;
         }
 
 
@@ -43,7 +44,7 @@ namespace MenderbugsRevenge
             IL.TownGrass.OnTriggerEnter2D -= TriggerGrass;
             IL.GrassSpriteBehaviour.OnTriggerEnter2D -= TriggerGrass;
 
-            ModHooks.SetPlayerBoolHook -= TriggerMenderSign;
+            On.PlayMakerFSM.OnEnable -= TriggerFsmBreakables;
         }
 
         private static void BrokeObject(GameObject go = null)
@@ -64,7 +65,7 @@ namespace MenderbugsRevenge
 
         private static void Die()
         {
-            HeroController.instance.TakeDamage(HeroController.instance.gameObject, GlobalEnums.CollisionSide.bottom, 61, 0);
+            HeroController.instance.TakeDamage(HeroController.instance.gameObject, GlobalEnums.CollisionSide.bottom, 61, (int)GlobalEnums.HazardType.ACID);
         }
 
 
@@ -137,10 +138,17 @@ namespace MenderbugsRevenge
             }
             orig(self, flingAngleMin, flingAngleMax, impactMultiplier);
         }
-        private bool TriggerMenderSign(string name, bool orig)
+        private static void TriggerFsmBreakables(On.PlayMakerFSM.orig_OnEnable orig, PlayMakerFSM self)
         {
-            if (name == nameof(PlayerData.menderSignBroken) && GameManager.instance.sceneName == "Crossroads_01" && orig) BrokeObject();
-            return orig;
+            orig(self);
+
+            if (self.FsmName == "FSM")
+            {
+                if (self.TryGetState("Spider Egg?", out FsmState spiderEgg))
+                {
+                    spiderEgg.InsertMethod(0, () => BrokeObject(self.gameObject));
+                }
+            }
         }
     }
 }

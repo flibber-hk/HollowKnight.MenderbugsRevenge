@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Collections;
+using System.Reflection;
 using HutongGames.PlayMaker;
 using Modding;
 using MonoMod.Cil;
+using MonoMod.Utils;
 using UnityEngine;
 using Vasi;
 
@@ -29,6 +32,14 @@ namespace MenderbugsRevenge
             IL.GrassSpriteBehaviour.OnTriggerEnter2D += TriggerGrass;
 
             On.PlayMakerFSM.OnEnable += TriggerFsmBreakables;
+
+            HeroController_CanTakeDamage = typeof(HeroController)
+                                            .GetMethod("CanTakeDamage", BindingFlags.NonPublic | BindingFlags.Instance)
+                                            .GetFastDelegate();
+            GameObject go = new GameObject();
+            UnityEngine.Object.DontDestroyOnLoad(go);
+            _coroutineStarter = go.AddComponent<NonBouncer>();
+            MarkedForDeath = false;
         }
 
 
@@ -45,6 +56,10 @@ namespace MenderbugsRevenge
             IL.GrassSpriteBehaviour.OnTriggerEnter2D -= TriggerGrass;
 
             On.PlayMakerFSM.OnEnable -= TriggerFsmBreakables;
+
+            HeroController_CanTakeDamage = null;
+            UnityEngine.Object.Destroy(_coroutineStarter.gameObject);
+            MarkedForDeath = false;
         }
 
         private static void BrokeObject(GameObject go = null)
@@ -63,11 +78,26 @@ namespace MenderbugsRevenge
             Die();
         }
 
+        private static bool MarkedForDeath = false;
+        private static FastReflectionDelegate HeroController_CanTakeDamage;
+        private static NonBouncer _coroutineStarter;
+
         private static void Die()
         {
-            HeroController.instance.TakeDamage(HeroController.instance.gameObject, GlobalEnums.CollisionSide.bottom, 61, (int)GlobalEnums.HazardType.ACID);
+            if (!MarkedForDeath)
+            {
+                MarkedForDeath = true;
+                _coroutineStarter.StartCoroutine(DieWhenAble());
+            }
         }
 
+        private static IEnumerator DieWhenAble()
+        {
+            yield return new WaitUntil(() => (bool)HeroController_CanTakeDamage(HeroController.instance));
+            MarkedForDeath = false;
+            HeroController.instance.TakeDamage(HeroController.instance.gameObject, GlobalEnums.CollisionSide.bottom, 61, (int)GlobalEnums.HazardType.ACID);
+            _coroutineStarter.StopAllCoroutines();
+        }
 
         private static void TriggerGrass(ILContext il)
         {
@@ -132,7 +162,7 @@ namespace MenderbugsRevenge
         }
         private static void TriggerBreakable(On.Breakable.orig_Break orig, Breakable self, float flingAngleMin, float flingAngleMax, float impactMultiplier)
         {
-            if (!ReflectionHelper.GetField<Breakable, bool>(self, "isBroken"))
+            if (!Modding.ReflectionHelper.GetField<Breakable, bool>(self, "isBroken"))
             {
                 BrokeObject(self.gameObject);
             }

@@ -40,8 +40,9 @@ namespace MenderbugsRevenge
             UnityEngine.Object.DontDestroyOnLoad(go);
             _coroutineStarter = go.AddComponent<NonBouncer>();
             MarkedForDeath = false;
-        }
 
+            ModHooks.AfterPlayerDeadHook += CancelPriorDeaths;
+        }
 
         public void Unload()
         {
@@ -60,9 +61,11 @@ namespace MenderbugsRevenge
             HeroController_CanTakeDamage = null;
             UnityEngine.Object.Destroy(_coroutineStarter.gameObject);
             MarkedForDeath = false;
+
+            ModHooks.AfterPlayerDeadHook -= CancelPriorDeaths;
         }
 
-        private static void BrokeObject(GameObject go = null)
+        private static void BrokeObject(string msg, GameObject go = null)
         {
             if (go != null)
             {
@@ -75,29 +78,55 @@ namespace MenderbugsRevenge
                 }
             }
 
-            Die();
+            Die(msg);
         }
 
         private static bool MarkedForDeath = false;
         private static FastReflectionDelegate HeroController_CanTakeDamage;
         private static NonBouncer _coroutineStarter;
 
-        private static void Die()
+        private void CancelPriorDeaths()
         {
-            if (!MarkedForDeath)
+            _coroutineStarter.StopAllCoroutines();
+            MarkedForDeath = false;
+        }
+
+        private static void Die(string msg)
+        {
+            instance.Log($"Broke Object: {msg}");
+
+            if (MarkedForDeath)
             {
-                MarkedForDeath = true;
-                _coroutineStarter.StartCoroutine(DieWhenAble());
+                instance.Log("Already marked!");
+                return;
             }
+
+            if ((bool)HeroController_CanTakeDamage(HeroController.instance))
+            {
+                instance.Log("Killing immediately");
+                KillHero();
+                return;
+            }
+
+            instance.Log("Marking for death...");
+            MarkedForDeath = true;
+            _coroutineStarter.StartCoroutine(DieWhenAble());
         }
 
         private static IEnumerator DieWhenAble()
         {
             yield return new WaitUntil(() => (bool)HeroController_CanTakeDamage(HeroController.instance));
+            KillHero();
+
+        }
+        private static void KillHero()
+        {
             MarkedForDeath = false;
             HeroController.instance.TakeDamage(HeroController.instance.gameObject, GlobalEnums.CollisionSide.bottom, 61, (int)GlobalEnums.HazardType.ACID);
             _coroutineStarter.StopAllCoroutines();
         }
+
+
 
         private static void TriggerGrass(ILContext il)
         {
@@ -110,7 +139,7 @@ namespace MenderbugsRevenge
                 i => i.MatchCall<GrassCut>("ShouldCut")
             ))
             {
-                cursor.EmitDelegate<Func<bool, bool>>((shouldCut) => { if (shouldCut) BrokeObject(); return shouldCut; });
+                cursor.EmitDelegate<Func<bool, bool>>((shouldCut) => { if (shouldCut) BrokeObject("Grass"); return shouldCut; });
             }
         }
         private static void TriggerInfectionBubble(ILContext il)
@@ -125,7 +154,7 @@ namespace MenderbugsRevenge
                 i => i.MatchCallvirt<AudioSource>("Play")
             ))
             {
-                cursor.EmitDelegate<Action>(() => { BrokeObject(); });
+                cursor.EmitDelegate<Action>(() => { BrokeObject("Bubble"); });
             }
         }
         private static void TriggerBreakablePoleActivated(ILContext il)
@@ -139,7 +168,7 @@ namespace MenderbugsRevenge
                 i => i.MatchStfld<BreakablePoleSimple>("activated")
             ))
             {
-                cursor.EmitDelegate<Action>(() => { BrokeObject(); });
+                cursor.EmitDelegate<Action>(() => { BrokeObject("Pole"); });
             }
         }
         private static void TriggerBreakableVineActivated(ILContext il)
@@ -153,18 +182,18 @@ namespace MenderbugsRevenge
                 i => i.MatchStfld<BreakableInfectedVine>("activated")
             ))
             {
-                cursor.EmitDelegate<Action>(() => { BrokeObject(); });
+                cursor.EmitDelegate<Action>(() => { BrokeObject("Infected Vine"); });
             }
         }
         private static void TriggerJellyEgg(On.JellyEgg.orig_Burst orig, JellyEgg self)
         {
-            orig(self); BrokeObject();
+            orig(self); BrokeObject("Jelly Egg");
         }
         private static void TriggerBreakable(On.Breakable.orig_Break orig, Breakable self, float flingAngleMin, float flingAngleMax, float impactMultiplier)
         {
             if (!Modding.ReflectionHelper.GetField<Breakable, bool>(self, "isBroken"))
             {
-                BrokeObject(self.gameObject);
+                BrokeObject($"Normal: {self.gameObject.name}", self.gameObject);
             }
             orig(self, flingAngleMin, flingAngleMax, impactMultiplier);
         }
@@ -176,7 +205,7 @@ namespace MenderbugsRevenge
             {
                 if (self.TryGetState("Spider Egg?", out FsmState spiderEgg))
                 {
-                    spiderEgg.InsertMethod(0, () => BrokeObject(self.gameObject));
+                    spiderEgg.InsertMethod(0, () => BrokeObject($"FSM: {self.gameObject.name}", self.gameObject));
                 }
             }
         }

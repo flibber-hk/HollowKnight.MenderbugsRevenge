@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Reflection;
 using HutongGames.PlayMaker;
-using HutongGames.PlayMaker.Actions;
 using Modding;
 using MonoMod.Cil;
 using MonoMod.Utils;
@@ -34,9 +33,6 @@ namespace MenderbugsRevenge
 
             On.PlayMakerFSM.OnEnable += TriggerFsmBreakables;
 
-            HeroController_CanTakeDamage = typeof(HeroController)
-                                            .GetMethod("CanTakeDamage", BindingFlags.NonPublic | BindingFlags.Instance)
-                                            .GetFastDelegate();
             GameObject go = new GameObject();
             UnityEngine.Object.DontDestroyOnLoad(go);
             _coroutineStarter = go.AddComponent<NonBouncer>();
@@ -59,7 +55,6 @@ namespace MenderbugsRevenge
 
             On.PlayMakerFSM.OnEnable -= TriggerFsmBreakables;
 
-            HeroController_CanTakeDamage = null;
             UnityEngine.Object.Destroy(_coroutineStarter.gameObject);
             MarkedForDeath = false;
 
@@ -83,7 +78,9 @@ namespace MenderbugsRevenge
         }
 
         private bool MarkedForDeath = false;
-        private FastReflectionDelegate HeroController_CanTakeDamage;
+        private static readonly FastReflectionDelegate HeroController_CanTakeDamage = typeof(HeroController)
+                                                                                      .GetMethod("CanTakeDamage", BindingFlags.NonPublic | BindingFlags.Instance)
+                                                                                      .GetFastDelegate();
         private NonBouncer _coroutineStarter;
 
         private void CancelPriorDeaths()

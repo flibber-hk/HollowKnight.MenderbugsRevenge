@@ -14,7 +14,7 @@ namespace MenderbugsRevenge
     {
         public MenderbugsRevenge() : base("Menderbug's Revenge") { }
         internal static MenderbugsRevenge instance;
-        public override string GetVersion() => "0.9";
+        public override string GetVersion() => "1.0";
 
         public override void Initialize()
         {
@@ -79,8 +79,8 @@ namespace MenderbugsRevenge
 
         private bool MarkedForDeath = false;
         private static readonly FastReflectionDelegate HeroController_CanTakeDamage = typeof(HeroController)
-                                                                                      .GetMethod("CanTakeDamage", BindingFlags.NonPublic | BindingFlags.Instance)
-                                                                                      .GetFastDelegate();
+                                                                                     .GetMethod("CanTakeDamage", BindingFlags.NonPublic | BindingFlags.Instance)
+                                                                                     .GetFastDelegate();
         private NonBouncer _coroutineStarter;
 
         private void CancelPriorDeaths()

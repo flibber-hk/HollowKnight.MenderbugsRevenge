@@ -7,4 +7,6 @@ Notes: there are a few surprising gotchas to watch out for:
 * There's a bubble at the right entrance to the Fog Canyon Acid room before Queen's Gardens ("QGA room"). That means it's impossible to enter this room while the mod is active.
 * There's a hanging cloth at the bottom of Teacher's Archives that will break on cdash, meaning that one of Monarch Wings, Isma's Tear or Dreamgate is required to escape. With just wings of the three, the escape is very tight.
 * It's possible to get to Isma's Tear without a shade skip - cdashing from the very bottom of the wall with the crystal (in the room past the spike tunnel) will allow you to get there without breaking the crystal; it's very tight though.
+* It's possible to get to Watcher's Spire without the background pogo or getting wings, by shade skipping - either die by breaking a background object, or die on the elevator spikes.
+* Watch out for breakables in the boss arenas, particularly Hornet 1 and Broken Vessel's arenas.
 * Because of how the mod is implemented, if you activate invincibility in debug, break something, and then deactivate it, you'll die. Toggling the mod off will prevent any queued deaths though.

@@ -1,37 +1,34 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
-using HutongGames.PlayMaker;
+using System.Text.RegularExpressions;
+using GlobalEnums;
 using Modding;
-using MonoMod.Cil;
 using MonoMod.Utils;
 using UnityEngine;
-using Vasi;
 
 namespace MenderbugsRevenge
 {
-    public class MenderbugsRevenge : Mod, ITogglableMod
+    public class MenderbugsRevenge : Mod, IGlobalSettings<GlobalSettings>, IMenuMod
     {
-        public MenderbugsRevenge() : base("Menderbug's Revenge") { }
         internal static MenderbugsRevenge instance;
-        public override string GetVersion() => "1.0";
+        public MenderbugsRevenge() : base("Menderbug's Revenge")
+        {
+            instance = this;
+        }
+        public override string GetVersion() => "1.2";
+
+        public static GlobalSettings GS = new GlobalSettings();
+        public GlobalSettings OnSaveGlobal() => GS;
+        public void OnLoadGlobal(GlobalSettings s) => GS = s;
 
         public override void Initialize()
         {
             Log("Initializing...");
-            instance = this;
-
-            On.Breakable.Break += TriggerBreakable;
-            IL.BreakablePoleSimple.OnTriggerEnter2D += TriggerBreakablePoleActivated;
-            IL.BreakableInfectedVine.OnTriggerEnter2D += TriggerBreakableVineActivated;
-            IL.InfectedBurstLarge.OnTriggerEnter2D += TriggerInfectionBubble;
-            On.JellyEgg.Burst += TriggerJellyEgg;
-
-            IL.GrassCut.OnTriggerEnter2D += TriggerGrass;
-            IL.TownGrass.OnTriggerEnter2D += TriggerGrass;
-            IL.GrassSpriteBehaviour.OnTriggerEnter2D += TriggerGrass;
-
-            On.PlayMakerFSM.OnEnable += TriggerFsmBreakables;
+            BreakableWatcher.Hook();
+            BreakableWatcher.OnBrokeObject += OnBrokeObject;
 
             GameObject go = new GameObject();
             UnityEngine.Object.DontDestroyOnLoad(go);
@@ -41,40 +38,21 @@ namespace MenderbugsRevenge
             ModHooks.AfterPlayerDeadHook += CancelPriorDeaths;
         }
 
-        public void Unload()
+        public bool ToggleButtonInsideMenu => false;
+        public List<IMenuMod.MenuEntry> GetMenuData(IMenuMod.MenuEntry? wrappedToggleButtonEntry)
         {
-            On.Breakable.Break -= TriggerBreakable;
-            IL.BreakablePoleSimple.OnTriggerEnter2D -= TriggerBreakablePoleActivated;
-            IL.BreakableInfectedVine.OnTriggerEnter2D -= TriggerBreakableVineActivated;
-            IL.InfectedBurstLarge.OnTriggerEnter2D -= TriggerInfectionBubble;
-            On.JellyEgg.Burst -= TriggerJellyEgg;
+            List<IMenuMod.MenuEntry> menuEntries = new List<IMenuMod.MenuEntry>();
 
-            IL.GrassCut.OnTriggerEnter2D -= TriggerGrass;
-            IL.TownGrass.OnTriggerEnter2D -= TriggerGrass;
-            IL.GrassSpriteBehaviour.OnTriggerEnter2D -= TriggerGrass;
-
-            On.PlayMakerFSM.OnEnable -= TriggerFsmBreakables;
-
-            UnityEngine.Object.Destroy(_coroutineStarter.gameObject);
-            MarkedForDeath = false;
-
-            ModHooks.AfterPlayerDeadHook -= CancelPriorDeaths;
-        }
-
-        private void BrokeObject(string msg, GameObject go = null)
-        {
-            if (go != null)
+            menuEntries.Add(new IMenuMod.MenuEntry
             {
-                foreach (Collider2D col in go.GetComponentsInChildren<Collider2D>())
-                {
-                    if (col.gameObject.layer == (int)GlobalEnums.PhysLayers.TERRAIN)
-                    {
-                        return;
-                    }
-                }
-            }
+                Name = "Action on break",
+                Description = "Choose what happens when you break an object",
+                Values = Enum.GetNames(typeof(GlobalSettings.PunishmentType)).Select(x => Regex.Replace(x, "([A-Z])", " $1").TrimStart()).ToArray(),
+                Saver = i => GS.ActionOnBreak = (GlobalSettings.PunishmentType)i,
+                Loader = () => (int)GS.ActionOnBreak
+            });
 
-            Die(msg);
+            return menuEntries;
         }
 
         private bool MarkedForDeath = false;
@@ -90,10 +68,27 @@ namespace MenderbugsRevenge
             MarkedForDeath = false;
         }
 
-        private void Die(string msg)
+        private void OnBrokeObject(string msg)
         {
             Log($"Broke Object: {msg}");
 
+            switch (GS.ActionOnBreak)
+            {
+                case GlobalSettings.PunishmentType.OneDamage:
+                    DealOneDamage(); 
+                    return;
+                case GlobalSettings.PunishmentType.Die:
+                    Die();
+                    return;
+            }
+        }
+
+        private void DealOneDamage()
+        {
+            HeroController.instance.TakeDamage(null, CollisionSide.bottom, 1, 1);
+        }
+        private void Die()
+        {
             if (MarkedForDeath)
             {
                 Log("Already marked!");
@@ -115,15 +110,15 @@ namespace MenderbugsRevenge
 
         private IEnumerator DieWhenAble()
         {
-            yield return new WaitUntil(() => (bool)HeroController_CanTakeDamage(HeroController.instance));
-            KillHero();
+            yield return new WaitUntil(() => (bool)HeroController_CanTakeDamage(HeroController.instance) || GS.ActionOnBreak != GlobalSettings.PunishmentType.Die);
+            if (GS.ActionOnBreak == GlobalSettings.PunishmentType.Die) KillHero();
 
         }
         private void KillHero()
         {
             MarkedForDeath = false;
             StopFuryAudio();
-            HeroController.instance.TakeDamage(HeroController.instance.gameObject, GlobalEnums.CollisionSide.bottom, 61, (int)GlobalEnums.HazardType.ACID);
+            HeroController.instance.TakeDamage(null, CollisionSide.bottom, 61, (int)GlobalEnums.HazardType.ACID);
             _coroutineStarter.StopAllCoroutines();
         }
         private void PlayFuryAudio()
@@ -135,86 +130,6 @@ namespace MenderbugsRevenge
             HeroController.instance.transform.Find("Charm Effects").Find("Fury").gameObject.LocateMyFSM("Control Audio").SendEvent("STOP");
         }
 
-        private void TriggerGrass(ILContext il)
-        {
-            ILCursor cursor = new ILCursor(il);
 
-            if (cursor.TryGotoNext
-            (
-                MoveType.After,
-                i => i.MatchLdarg(1),
-                i => i.MatchCall<GrassCut>("ShouldCut")
-            ))
-            {
-                cursor.EmitDelegate<Func<bool, bool>>((shouldCut) => { if (shouldCut) BrokeObject("Grass"); return shouldCut; });
-            }
-        }
-        private void TriggerInfectionBubble(ILContext il)
-        {
-            ILCursor cursor = new ILCursor(il);
-
-            if (cursor.TryGotoNext
-            (
-                MoveType.After,
-                i => i.MatchLdarg(0),
-                i => i.MatchLdfld<InfectedBurstLarge>("audioSource"),
-                i => i.MatchCallvirt<AudioSource>("Play")
-            ))
-            {
-                cursor.EmitDelegate<Action>(() => { BrokeObject("Bubble"); });
-            }
-        }
-        private void TriggerBreakablePoleActivated(ILContext il)
-        {
-            ILCursor cursor = new ILCursor(il);
-
-            if (cursor.TryGotoNext
-            (
-                i => i.MatchLdarg(0),
-                i => i.MatchLdcI4(1),
-                i => i.MatchStfld<BreakablePoleSimple>("activated")
-            ))
-            {
-                cursor.EmitDelegate<Action>(() => { BrokeObject("Pole"); });
-            }
-        }
-        private void TriggerBreakableVineActivated(ILContext il)
-        {
-            ILCursor cursor = new ILCursor(il);
-
-            if (cursor.TryGotoNext
-            (
-                i => i.MatchLdarg(0),
-                i => i.MatchLdcI4(1),
-                i => i.MatchStfld<BreakableInfectedVine>("activated")
-            ))
-            {
-                cursor.EmitDelegate<Action>(() => { BrokeObject("Infected Vine"); });
-            }
-        }
-        private void TriggerJellyEgg(On.JellyEgg.orig_Burst orig, JellyEgg self)
-        {
-            orig(self); BrokeObject("Jelly Egg");
-        }
-        private void TriggerBreakable(On.Breakable.orig_Break orig, Breakable self, float flingAngleMin, float flingAngleMax, float impactMultiplier)
-        {
-            if (!Modding.ReflectionHelper.GetField<Breakable, bool>(self, "isBroken"))
-            {
-                BrokeObject($"Normal: {self.gameObject.name}", self.gameObject);
-            }
-            orig(self, flingAngleMin, flingAngleMax, impactMultiplier);
-        }
-        private void TriggerFsmBreakables(On.PlayMakerFSM.orig_OnEnable orig, PlayMakerFSM self)
-        {
-            orig(self);
-
-            if (self.FsmName == "FSM")
-            {
-                if (self.TryGetState("Spider Egg?", out FsmState spiderEgg))
-                {
-                    spiderEgg.InsertMethod(0, () => BrokeObject($"FSM: {self.gameObject.name}", self.gameObject));
-                }
-            }
-        }
     }
 }

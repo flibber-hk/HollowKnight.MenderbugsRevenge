@@ -20,3 +20,6 @@ A few further things to watch out for:
 * Using cdash when trying to rescue the grub at the top of Queen's Gardens can break some vines (it is possible, though tricky, to rescue this grub without cdash)
 * Using cdash in the spike tunnel below glowing womb can break some objects
 * One of the stalactites in the cave below Oro will always break something
+
+
+Thanks to Banderi for noting several of the gotchas!

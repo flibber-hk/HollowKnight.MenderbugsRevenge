@@ -12,4 +12,11 @@ Notes: there are a few surprising gotchas to watch out for:
 * It's possible to get to Isma's Tear without a shade skip - cdashing from the very bottom of the wall with the crystal (in the room past the spike tunnel) will allow you to get there without breaking the crystal; it's very tight though.
 * It's possible to get to Watcher's Spire without the background pogo or getting wings, by shade skipping - either die by breaking a background object, or die on the elevator spikes.
 * Watch out for breakables in the boss arenas, particularly Hornet 1 and Broken Vessel's arenas.
+
+
+A few further things to watch out for:
 * Because of how the mod is implemented, if you activate invincibility in debug, break something, and then deactivate it, you'll die. Toggling action on death will prevent any queued deaths though.
+* If you save Cloth in Ancient Basin before fighting Traitor Lord, then defeating Traitor Lord will become impossible.
+* Using cdash when trying to rescue the grub at the top of Queen's Gardens can break some vines (it is possible, though tricky, to rescue this grub without cdash)
+* Using cdash in the spike tunnel below glowing womb can break some objects
+* One of the stalactites in the cave below Oro will always break something
